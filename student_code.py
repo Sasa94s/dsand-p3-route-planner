@@ -1,75 +1,92 @@
 import math
 
-class PossiblePaths(object):
-    def __init__(self):
-        self.queue = []
+class Space(object):
+    def __init__(self, start):
+        self.opened_set = {start}
+        self.closed_set = set()
 
-    def __str__(self):
-        return ' '.join([str(i) for i in self.queue])
+    def visit_node(self, node):
+        self.opened_set.remove(node)
+        self.closed_set.add(node)
 
-    def isEmpty(self):
-        return not self.queue
+    def is_visited(self, node):
+        return node in self.closed_set
 
-    def insert(self, data):
-        self.queue.append(data)
+    def has_to_explore(self):
+        return len(self.opened_set) != 0
 
-    def delete(self):
-        try:
-            mini = 0
-            for i in range(len(self.queue)):
-                if (self.queue[i][-1] + self.queue[i][-2]) < (self.queue[mini][-1] + self.queue[mini][-2]):
-                    mini = i
-            item = self.queue[mini]
-            del self.queue[mini]
-            return item
-        except IndexError:
-            print()
+    def explore(self, node):
+        self.opened_set.add(node)
+
+    def is_explored(self, node):
+        return node in self.opened_set
+
+    def minimized_node(self, f_score):
+        mini_node = None
+        mini_score = float('inf')
+
+        for node in self.opened_set:
+            current_score = f_score[node]
+            if current_score < mini_score:
+                mini_score = current_score
+                mini_node = node
+
+        return mini_node
 
 
 def shortest_path(M, start, goal):
-    global intersection_dict, roads, possible_paths, heuristic_values, next_cost
-
     if start == goal:
         return [start]
 
-    heuristic_values = {}
-    next_cost = []
-    intersection_dict = M.intersections
+    nodes = M.intersections
     roads = M.roads
 
-    for node in intersection_dict:
-        heuristic_values[node] = math.sqrt((intersection_dict[node][0] - intersection_dict[goal][0]) ** 2 + abs(
-            intersection_dict[node][1] - intersection_dict[goal][1]) ** 2)
+    nodes_count = len(nodes)
+    came_from = {}
+    g_score = [float('inf')] * nodes_count
+    f_score = [float('inf')] * nodes_count
 
-    for i in range(len(roads)):
-        plan_queue = []
-        for path in roads[i]:
-            plan_queue.append(math.sqrt((intersection_dict[i][0] - intersection_dict[path][0]) ** 2 + abs(
-                intersection_dict[i][1] - intersection_dict[path][1]) ** 2))
-        next_cost.append(plan_queue)
+    g_score[start] = 0.0
+    f_score[start] = euclidean_distance(nodes[start], nodes[goal])
+    space = Space(start)
 
-    possible_paths = PossiblePaths()
-    possible_paths.insert([[start], 0, heuristic_values[start]])
-    return helper_path(goal)
+    while space.has_to_explore():
+        current_node = space.minimized_node(f_score)
+
+        if current_node == goal:
+            return reconstruct_path(came_from, current_node)
+
+        space.visit_node(current_node)
+        nearby_nodes = roads[current_node]
+
+        for nearby_node in nearby_nodes:
+            if space.is_visited(nearby_node):
+                continue
+
+            if not space.is_explored(nearby_node):
+                space.explore(nearby_node)
+
+            updated_g_score = g_score[current_node] + euclidean_distance(nodes[current_node], nodes[nearby_node])
+
+            if updated_g_score >= g_score[nearby_node]:
+                continue
+
+            came_from[nearby_node] = current_node
+            g_score[nearby_node] = updated_g_score
+            f_score[nearby_node] = g_score[nearby_node] + euclidean_distance(nodes[nearby_node], nodes[goal])
+
+    return None
 
 
-def helper_path(goal):
-    global intersection_dict, roads, possible_paths, heuristic_values, next_cost
+def euclidean_distance(x, y):
+    return math.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2)
 
-    if possible_paths.isEmpty():
-        return "No possible path"
-    else:
-        item = possible_paths.delete()
 
-    current = item[0][-1]
-    if current == goal:
-        return item[0]
+def reconstruct_path(came_from, current_node):
+    path = [current_node]
 
-    for i, front in enumerate(roads[current]):
-        if front in item[0]:
-            continue
-        g = next_cost[current][i] + item[-2]
-        h = heuristic_values[front]
-        possible_paths.insert([item[0] + [front], g, h])
+    while current_node in came_from.keys():
+        current_node = came_from[current_node]
+        path.append(current_node)
 
-    return helper_path(goal)
+    return path[::-1] # reversed path
